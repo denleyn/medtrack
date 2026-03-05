@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { HeartPulse } from "lucide-react"
+import { ArrowLeft, HeartPulse } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -55,6 +55,14 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md border-border shadow-lg">
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Dashboard
+        </button>
         <CardHeader className="space-y-1 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-teal/10">
             <HeartPulse className="h-7 w-7 text-teal" />

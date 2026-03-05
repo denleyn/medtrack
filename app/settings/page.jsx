@@ -54,6 +54,7 @@ export default function SettingsPage() {
   const [browserNotifications, setBrowserNotifications] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [generatingDemo, setGeneratingDemo] = useState(false)
 
   useEffect(() => {
     const theme = getStoredTheme()
@@ -102,6 +103,23 @@ export default function SettingsPage() {
       toast.error(err?.message ?? "Failed to update profile")
     } finally {
       setSavingProfile(false)
+    }
+  }
+
+  async function handleGenerateDemoData() {
+    setGeneratingDemo(true)
+    try {
+      const res = await fetch("/api/cron/seed", {
+        headers: { authorization: "Bearer medtrack-cron-2026" }
+      })
+      const data = await res.json()
+      toast.success(
+        `Demo data generated! ${data.inserted?.patients ?? 0} patients and ${data.inserted?.tickets ?? 0} tickets added.`
+      )
+    } catch (err) {
+      toast.error("Failed to generate demo data")
+    } finally {
+      setGeneratingDemo(false)
     }
   }
 
@@ -223,6 +241,29 @@ export default function SettingsPage() {
               onCheckedChange={setBrowserNotifications}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Demo Data */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Demo Data</CardTitle>
+          <CardDescription>
+            Generate fresh demo data to keep the dashboard looking active for presentations.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            type="button"
+            disabled={generatingDemo}
+            className="bg-blue-700 hover:bg-blue-800 text-white"
+            onClick={handleGenerateDemoData}
+          >
+            {generatingDemo ? "Generating…" : "Generate Demo Data"}
+          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Adds new patient visits and tickets, and resolves old ones. Safe to run anytime.
+          </p>
         </CardContent>
       </Card>
 
