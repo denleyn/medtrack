@@ -320,7 +320,7 @@ export default function TicketsTable() {
             setTicketToEdit(null)
             setDialogOpen(true)
           }}
-          className="bg-teal text-white hover:bg-teal/90"
+          className="bg-blue-700 hover:bg-blue-800 text-white"
         >
           <Plus className="h-4 w-4" />
           New Ticket

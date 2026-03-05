@@ -107,7 +107,12 @@ export default function Header({ mainRef }) {
     openSearch,
     closeSearch,
   } = useSearch()
-  const { tickets } = useTickets()
+  const { tickets, refetch } = useTickets()
+
+  useEffect(() => {
+    const interval = setInterval(refetch, 30_000)
+    return () => clearInterval(interval)
+  }, [refetch])
   const { displayName } = useProfile()
   const [readIds, setReadIdsState] = useState(() => getReadIds())
 

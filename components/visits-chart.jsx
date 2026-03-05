@@ -16,17 +16,6 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card"
-import { TrendingUp } from "lucide-react"
-
-const data = [
-  { day: "Mon", visits: 42 },
-  { day: "Tue", visits: 58 },
-  { day: "Wed", visits: 65 },
-  { day: "Thu", visits: 51 },
-  { day: "Fri", visits: 72 },
-  { day: "Sat", visits: 38 },
-  { day: "Sun", visits: 25 },
-]
 
 function CustomTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
@@ -42,9 +31,12 @@ function CustomTooltip({ active, payload, label }) {
   return null
 }
 
-export default function VisitsChart() {
-  const totalVisits = data.reduce((sum, d) => sum + d.visits, 0)
-  const avgVisits = Math.round(totalVisits / data.length)
+export default function VisitsChart({ visitsByDay = [] }) {
+  const data = Array.isArray(visitsByDay) && visitsByDay.length > 0
+    ? visitsByDay
+    : [{ day: "—", visits: 0 }]
+  const totalVisits = data.reduce((sum, d) => sum + (d.visits ?? 0), 0)
+  const avgVisits = data.length > 0 ? Math.round(totalVisits / data.length) : 0
 
   return (
     <Card className="border-border/50 bg-card shadow-sm">
@@ -57,12 +49,6 @@ export default function VisitsChart() {
             <CardDescription className="mt-1 text-sm text-muted-foreground">
               Total: {totalVisits} visits &middot; Avg: {avgVisits}/day
             </CardDescription>
-          </div>
-          <div className="flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2.5 py-1">
-            <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-            <span className="text-xs font-semibold text-emerald-600">
-              +12.5%
-            </span>
           </div>
         </div>
       </CardHeader>

@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react"
 import Papa from "papaparse"
 import { toast } from "sonner"
-import { Upload, FileSpreadsheet, Download } from "lucide-react"
+import { Upload, FileSpreadsheet, Download, Loader2 } from "lucide-react"
 import {
   Card,
   CardContent,
@@ -33,13 +33,12 @@ import { supabase } from "@/lib/supabase"
 
 const SKIP_VALUE = "__skip__"
 const DB_FIELDS = [
-  { value: "patient_id", label: "Patient ID" },
-  { value: "visit_date", label: "Visit Date" },
-  { value: "department", label: "Department" },
-  { value: "visit_type", label: "Visit Type" },
-  { value: "wait_time_mins", label: "Wait Time (mins)" },
-  { value: "outcome", label: "Outcome" },
-  { value: SKIP_VALUE, label: "— Skip —" },
+  { key: "patient_id", label: "Patient ID" },
+  { key: "visit_date", label: "Visit Date" },
+  { key: "department", label: "Department" },
+  { key: "visit_type", label: "Visit Type" },
+  { key: "wait_time_mins", label: "Wait Time (mins)" },
+  { key: "outcome", label: "Outcome" },
 ]
 
 const SAMPLE_CSV = `patient_id,visit_date,department,visit_type,wait_time_mins,outcome
@@ -57,6 +56,8 @@ export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [errorMessage, setErrorMessage] = useState("")
+  const [summary, setSummary] = useState("")
 
   const handleFile = useCallback((rawFile) => {
     if (!rawFile || !rawFile.name.toLowerCase().endsWith(".csv")) {
@@ -64,6 +65,8 @@ export default function UploadPage() {
       return
     }
     setFile(rawFile)
+    setErrorMessage("")
+    setSummary("")
     const reader = new FileReader()
     reader.onload = (e) => {
       const text = e.target?.result
@@ -73,13 +76,14 @@ export default function UploadPage() {
       const cols = result.meta?.fields ?? (rows[0] ? Object.keys(rows[0]) : [])
       setParsedData(rows)
       setColumns(cols)
+
       const initial = {}
-      cols.forEach((col) => {
-        const normalized = col.toLowerCase().trim().replace(/\s+/g, "_")
-        const match = DB_FIELDS.find(
-          (f) => f.value && normalized.includes(f.value.replace(/_/g, ""))
-        )
-        initial[col] = match ? match.value : SKIP_VALUE
+      DB_FIELDS.forEach(({ key }) => {
+        const match = cols.find((col) => {
+          const normalized = col.toLowerCase().trim().replace(/\s+/g, "_")
+          return normalized.includes(key.replace(/_/g, ""))
+        })
+        initial[key] = match || SKIP_VALUE
       })
       setColumnMapping(initial)
     }
@@ -107,29 +111,53 @@ export default function UploadPage() {
   }, [])
 
   async function handleUpload() {
+    setErrorMessage("")
+    setSummary("")
+
     if (!parsedData.length) {
       toast.error("No data to upload")
       return
     }
-      const mapped = parsedData.map((row) => {
-      const out = {}
-      DB_FIELDS.forEach(({ value }) => {
-        if (!value || value === SKIP_VALUE) return
-        const csvCol = Object.keys(columnMapping).find((c) => columnMapping[c] === value)
-        if (csvCol && row[csvCol] !== undefined && row[csvCol] !== "") {
-          let val = row[csvCol]
-          if (value === "wait_time_mins") {
+
+    const patientCol = columnMapping.patient_id
+    const visitCol = columnMapping.visit_date
+    if (
+      !patientCol ||
+      patientCol === SKIP_VALUE ||
+      !visitCol ||
+      visitCol === SKIP_VALUE
+    ) {
+      const msg = "Patient ID and Visit Date are required"
+      setErrorMessage(msg)
+      toast.error(msg)
+      return
+    }
+
+    const nowIso = new Date().toISOString()
+    const mapped = parsedData
+      .map((row) => {
+        const out = {}
+        DB_FIELDS.forEach(({ key }) => {
+          const colName = columnMapping[key]
+          if (!colName || colName === SKIP_VALUE) return
+          const raw = row[colName]
+          if (raw === undefined || raw === "") return
+          let val = raw
+          if (key === "wait_time_mins") {
             const n = Number(val)
             if (!Number.isNaN(n)) val = n
           }
-          out[value] = val
-        }
+          out[key] = val
+        })
+        out.uploaded_at = nowIso
+        return out
       })
-      return out
-    }).filter((r) => Object.keys(r).length > 0)
+      .filter((r) => Object.keys(r).length > 0)
 
     if (!mapped.length) {
-      toast.error("Map at least one column to a field")
+      const msg = "Map at least one column to a field"
+      setErrorMessage(msg)
+      toast.error(msg)
       return
     }
 
@@ -147,11 +175,19 @@ export default function UploadPage() {
         setUploadProgress(Math.round((done / total) * 100))
       }
       toast.success(`Uploaded ${total} record(s) to patient_records`)
+      setSummary(`${total} records uploaded successfully`)
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("medtrack:data-updated"))
+      }
+      setFile(null)
+      setParsedData([])
+      setColumns([])
+      setColumnMapping({})
+      setUploadProgress(0)
     } catch (err) {
       toast.error(err?.message ?? "Upload failed")
     } finally {
       setUploading(false)
-      setUploadProgress(0)
     }
   }
 
@@ -168,7 +204,7 @@ export default function UploadPage() {
 
       <Card
         className={`cursor-pointer border-2 border-dashed transition-colors ${
-          isDragging ? "border-teal bg-teal/5" : "border-muted-foreground/25 hover:border-muted-foreground/50"
+          isDragging ? "border-blue-700 bg-blue-700/5" : "border-muted-foreground/25 hover:border-muted-foreground/50"
         }`}
         onDrop={onDrop}
         onDragOver={onDragOver}
@@ -197,31 +233,58 @@ export default function UploadPage() {
             <CardHeader>
               <CardTitle>Column mapping</CardTitle>
               <CardDescription>
-                Map each CSV column to a patient_records field. Unmapped columns are skipped.
+                Map each database field to the CSV column that contains it.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {columns.map((col) => (
-                  <div key={col} className="space-y-2">
-                    <Label className="text-muted-foreground">{col}</Label>
-                    <Select
-                      value={columnMapping[col] ?? SKIP_VALUE}
-                      onValueChange={(v) => setColumnMapping((prev) => ({ ...prev, [col]: v }))}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Skip" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DB_FIELDS.map((f) => (
-                          <SelectItem key={f.value} value={f.value}>
-                            {f.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
+              {errorMessage && (
+                <p className="text-sm text-destructive">{errorMessage}</p>
+              )}
+              <div className="overflow-x-auto rounded-md border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-1/3 text-muted-foreground">
+                        Database field
+                      </TableHead>
+                      <TableHead className="text-muted-foreground">
+                        CSV column
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {DB_FIELDS.map((field) => (
+                      <TableRow key={field.key}>
+                        <TableCell className="font-medium text-foreground">
+                          {field.label}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={columnMapping[field.key] ?? SKIP_VALUE}
+                            onValueChange={(v) =>
+                              setColumnMapping((prev) => ({
+                                ...prev,
+                                [field.key]: v,
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select CSV column" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={SKIP_VALUE}>— Skip —</SelectItem>
+                              {columns.map((col) => (
+                                <SelectItem key={col} value={col}>
+                                  {col}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             </CardContent>
           </Card>
@@ -261,24 +324,32 @@ export default function UploadPage() {
             </CardContent>
           </Card>
 
-          <div className="flex flex-col gap-4">
-            {uploading && (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">Uploading…</p>
-                <Progress value={uploadProgress} className="h-2" />
-              </div>
-            )}
-            <Button
-              onClick={handleUpload}
-              disabled={uploading || parsedData.length === 0}
-              className="w-fit bg-teal text-white hover:bg-teal/90"
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              Upload to Database
-            </Button>
-          </div>
+          {uploading && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Uploading…</p>
+              <Progress value={uploadProgress} className="h-2" />
+            </div>
+          )}
         </>
       )}
+
+      <div className="flex flex-col gap-2">
+        <Button
+          onClick={handleUpload}
+          disabled={uploading || parsedData.length === 0}
+          className="inline-flex items-center gap-2 bg-blue-700 text-white hover:bg-blue-800"
+        >
+          {uploading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="h-4 w-4" />
+          )}
+          <span>Upload to Database</span>
+        </Button>
+        {summary && (
+          <p className="text-sm text-emerald-600">{summary}</p>
+        )}
+      </div>
 
       <Card>
         <CardHeader>
@@ -291,7 +362,7 @@ export default function UploadPage() {
           <a
             href={`data:text/csv;charset=utf-8,${encodeURIComponent(SAMPLE_CSV)}`}
             download="patient_records_sample.csv"
-            className="inline-flex items-center gap-2 text-sm font-medium text-teal hover:underline"
+            className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
           >
             <Download className="h-4 w-4" />
             Download patient_records_sample.csv

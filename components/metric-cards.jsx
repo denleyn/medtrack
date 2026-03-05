@@ -1,11 +1,10 @@
+"use client"
+
 import {
   Clock,
   Database,
   AlertTriangle,
   CheckCircle,
-  TrendingUp,
-  TrendingDown,
-  ArrowUpRight,
 } from "lucide-react"
 import {
   Card,
@@ -18,60 +17,90 @@ const colorMap = {
   emerald: {
     iconBg: "bg-emerald-500/10",
     iconColor: "text-emerald-500",
-    badgeBg: "bg-emerald-500/10",
-    badgeText: "text-emerald-600",
   },
   cyan: {
     iconBg: "bg-cyan-500/10",
     iconColor: "text-cyan-500",
-    badgeBg: "bg-cyan-500/10",
-    badgeText: "text-cyan-600",
   },
   amber: {
     iconBg: "bg-amber-500/10",
     iconColor: "text-amber-500",
-    badgeBg: "bg-amber-500/10",
-    badgeText: "text-amber-600",
   },
 }
 
-export default function MetricCards({ openTickets = 0, resolvedToday = 0 }) {
+export default function MetricCards({
+  avgResolutionTime = null,
+  recordsProcessed = 0,
+  openTickets = 0,
+  resolvedToday = 0,
+  avgResolutionTrend = null,
+  recordsTrend = null,
+  openTicketsTrend = null,
+  resolvedTodayTrend = null,
+}) {
+  const avgDisplay =
+    avgResolutionTime != null && avgResolutionTime > 0
+      ? `${Math.round(avgResolutionTime)} mins`
+      : "N/A"
+
   const metrics = [
     {
       title: "Avg Resolution Time",
-      value: "24 mins",
-      change: "-12%",
-      trend: "down",
+      value: avgDisplay,
       color: "emerald",
       icon: Clock,
-      subtext: "vs. last week",
+      trend:
+        avgResolutionTrend != null && avgResolutionTrend.diffMins != null
+          ? {
+              text:
+                avgResolutionTrend.worse
+                  ? `▲ ${Math.abs(avgResolutionTrend.diffMins)} mins vs last week`
+                  : `▼ ${Math.abs(avgResolutionTrend.diffMins)} mins vs last week`,
+              className: avgResolutionTrend.worse
+                ? "text-red-600"
+                : "text-emerald-600",
+            }
+          : null,
     },
     {
       title: "Records Processed",
-      value: "1,200",
-      change: "+8.2%",
-      trend: "up",
+      value: String(recordsProcessed),
       color: "cyan",
       icon: Database,
-      subtext: "this month",
+      trend:
+        recordsTrend != null && recordsTrend.percentChange != null
+          ? {
+              text: `${recordsTrend.percentChange >= 0 ? "+" : ""}${recordsTrend.percentChange}% vs last month`,
+              className: "text-muted-foreground",
+            }
+          : null,
     },
     {
       title: "Open IT Tickets",
       value: String(openTickets),
-      change: `+${openTickets}`,
-      trend: "up",
       color: "amber",
       icon: AlertTriangle,
-      subtext: "needs attention",
+      trend:
+        openTicketsTrend != null && openTicketsTrend.needsAttention != null
+          ? {
+              text: `+${openTicketsTrend.needsAttention} needs attention`,
+              className: "text-orange-600",
+            }
+          : null,
     },
     {
       title: "Tickets Resolved Today",
       value: String(resolvedToday),
-      change: "+50%",
-      trend: "up",
       color: "emerald",
       icon: CheckCircle,
-      subtext: "vs. yesterday",
+      trend:
+        resolvedTodayTrend != null &&
+        resolvedTodayTrend.percentChange != null
+          ? {
+              text: `${resolvedTodayTrend.percentChange >= 0 ? "+" : ""}${resolvedTodayTrend.percentChange}% vs yesterday`,
+              className: "text-emerald-600",
+            }
+          : null,
     },
   ]
 
@@ -80,9 +109,6 @@ export default function MetricCards({ openTickets = 0, resolvedToday = 0 }) {
       {metrics.map((metric) => {
         const Icon = metric.icon
         const colors = colorMap[metric.color]
-        const isPositive =
-          metric.color === "emerald" || metric.color === "cyan"
-
         return (
           <Card
             key={metric.title}
@@ -99,30 +125,16 @@ export default function MetricCards({ openTickets = 0, resolvedToday = 0 }) {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-3xl font-bold tracking-tight text-foreground">
-                    {metric.value}
-                  </p>
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    <span
-                      className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-semibold ${colors.badgeBg} ${colors.badgeText}`}
-                    >
-                      {metric.trend === "up" && metric.color !== "amber" ? (
-                        <TrendingUp className="h-3 w-3" />
-                      ) : metric.trend === "down" ? (
-                        <TrendingDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpRight className="h-3 w-3" />
-                      )}
-                      {metric.change}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {metric.subtext}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              <p className="text-3xl font-bold tracking-tight text-foreground">
+                {metric.value}
+              </p>
+              {metric.trend && (
+                <p
+                  className={`mt-1 text-xs font-medium ${metric.trend.className}`}
+                >
+                  {metric.trend.text}
+                </p>
+              )}
             </CardContent>
           </Card>
         )
