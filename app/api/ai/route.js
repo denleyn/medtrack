@@ -8,7 +8,7 @@ export async function POST(req) {
     const response = await axios.post(
       "https://api.groq.com/openai/v1/chat/completions",
       {
-        model: "llama-3.1-8b-instant",
+        model: "openai/gpt-oss-120b",
         messages: [
           { role: "system", content: "You are an IT support assistant." },
           { role: "user", content: message }
