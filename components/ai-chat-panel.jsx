@@ -47,9 +47,10 @@ export default function AiChatPanel() {
       })
 
       const data = await res.json()
+      const content = data.error || data.reply || "No response."
       setMessages((prev) => [
         ...prev,
-        { id: Date.now() + "a", role: "assistant", content: data.reply || "No response." },
+        { id: Date.now() + "a", role: "assistant", content },
       ])
     } catch (err) {
       setMessages((prev) => [
